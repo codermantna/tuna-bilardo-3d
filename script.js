@@ -33,7 +33,13 @@ scene.add(bilardoTopu);
 // Animasyon döngüsü
 function animate() {
   requestAnimationFrame(animate);
+
+  // Topu sağa doğru hareket ettir
+  bilardoTopu.position.x += 0.05;
+  if (bilardoTopu.position.x > 9) bilardoTopu.position.x = -9;
+
   renderer.render(scene, camera);
 }
 animate();
+
 
