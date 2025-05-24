@@ -1,27 +1,41 @@
-body, html {
+body {
   margin: 0;
-  padding: 0;
   overflow: hidden;
-  background-color: #0f662f;
-  height: 100vh;
-  width: 100vw;
   font-family: Arial, sans-serif;
+  background-color: #0f662f;
+  color: white;
+  user-select: none;
 }
 
 #bilardoCanvas {
   display: block;
   width: 100vw;
   height: 100vh;
+  background-color: #0f662f;
 }
 
-/* Güç göstergesi */
-#powerBar {
+#powerContainer, #directionContainer {
   position: fixed;
+  bottom: 20px;
+  background: rgba(0,0,0,0.5);
+  padding: 8px;
+  border-radius: 8px;
+  font-size: 14px;
+  user-select: none;
+}
+
+#powerContainer {
   right: 20px;
-  bottom: 50px;
+  width: 40px;
+  text-align: center;
+}
+
+#powerBar {
+  position: relative;
   width: 20px;
   height: 150px;
   background: #333;
+  margin: 5px auto 10px;
   border-radius: 10px;
   overflow: hidden;
 }
@@ -30,31 +44,33 @@ body, html {
   position: absolute;
   bottom: 0;
   width: 100%;
-  background: linear-gradient(180deg, #00ff00, #008000);
-  transition: bottom 0.1s;
+  background: #ff0000;
+  height: 0%;
+  border-radius: 10px 10px 0 0;
+  transition: height 0.1s ease-out;
 }
 
-/* Yön göstergesi */
-#directionIndicator {
-  position: fixed;
-  bottom: 30px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 80%;
-  height: 10px;
-  background: #444;
-  border-radius: 5px;
+#directionContainer {
+  left: 20px;
+  width: 200px;
 }
 
-#directionIndicator::after {
-  content: '';
-  position: absolute;
-  top: -5px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 2px;
+#directionBar {
+  position: relative;
   height: 20px;
-  background: #0f0;
-  border-radius: 2px;
-  transition: left 0.1s;
+  background: #333;
+  margin-top: 5px;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+#directionIndicator {
+  position: absolute;
+  top: 0;
+  width: 20px;
+  height: 20px;
+  background: #00ff00;
+  border-radius: 50%;
+  left: 90px; /* ortada başlar */
+  transition: left 0.1s ease-out;
 }
