@@ -30,23 +30,69 @@ const bilardoTopu = new THREE.Mesh(topGeo, topMat);
 bilardoTopu.position.set(0, 0.5, 0);
 scene.add(bilardoTopu);
 
-// Hız değişkeni
-let speed = 0.1;
+// Topun hızı ve yönü
+let velocity = 0;
+let direction = 0;  // -1 sola, 0 duraklama, 1 sağa
+
+// Güç göstergesi elemanları
+const powerBar = document.getElementById('powerBar');
+const powerIndicator = document.getElementById('powerIndicator');
+let power = 0;   // 0 - 100 arasında
+let powerIncreasing = true;
+
+// Yön göstergesi için basit bir HTML/CSS elementi kullanacağız
+const directionIndicator = document.getElementById('directionIndicator');
+let directionPos = 0;  // -1 ile 1 arası, ok tuşlarıyla değişecek
+
+// Klavye olayları
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowRight') {
+    directionPos = Math.min(directionPos + 0.1, 1);
+  } else if (e.key === 'ArrowLeft') {
+    directionPos = Math.max(directionPos - 0.1, -1);
+  } else if (e.key === ' ') {
+    // Topa vur (topun hızı ve yönü ayarlanır)
+    velocity = power / 20; // Güç hızla orantılı
+    direction = directionPos;
+  }
+});
 
 // Animasyon döngüsü
 function animate() {
   requestAnimationFrame(animate);
 
-  // Topu hareket ettir
-  bilardoTopu.position.x += speed;
+  // Güç göstergesini animasyonla ayarla
+  if (powerIncreasing) {
+    power += 1;
+    if (power >= 100) powerIncreasing = false;
+  } else {
+    power -= 1;
+    if (power <= 0) powerIncreasing = true;
+  }
+  powerIndicator.style.bottom = (power * 0.8) + '%';
 
-  // Duvarlara çarpınca yön değiştir
-  if (bilardoTopu.position.x > 9 || bilardoTopu.position.x < -9) {
-    speed = -speed;
+  // Yön göstergesini güncelle
+  // directionPos -1 ile 1 arası, bunu px ile ifade edelim
+  directionIndicator.style.left = (50 + directionPos * 40) + '%';
+
+  // Top hareketi
+  if (velocity !== 0) {
+    bilardoTopu.position.x += velocity * direction;
+
+    // Sınırlar (masa kenarı)
+    if (bilardoTopu.position.x > 9) {
+      bilardoTopu.position.x = 9;
+      velocity = 0;
+    } else if (bilardoTopu.position.x < -9) {
+      bilardoTopu.position.x = -9;
+      velocity = 0;
+    }
+
+    // Hız yavaşlayacak (sürtünme)
+    velocity *= 0.95;
+    if (velocity < 0.01) velocity = 0;
   }
 
   renderer.render(scene, camera);
 }
 animate();
-
-

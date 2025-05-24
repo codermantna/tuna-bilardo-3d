@@ -2,13 +2,25 @@
 <html lang="tr">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Tuna Bilardo 3D</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bilardo 3D</title>
   <link rel="stylesheet" href="style.css" />
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
 </head>
 <body>
+  <!-- 3D Sahne için canvas -->
   <canvas id="bilardoCanvas"></canvas>
+
+  <!-- Yön göstergesi -->
+  <div id="directionContainer">
+    <div id="directionIndicator"></div>
+  </div>
+
+  <!-- Güç göstergesi -->
+  <div id="powerBar">
+    <div id="powerIndicator"></div>
+  </div>
+
+  <!-- JavaScript dosyası -->
   <script src="script.js"></script>
 </body>
 </html>
