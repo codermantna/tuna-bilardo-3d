@@ -30,13 +30,20 @@ const bilardoTopu = new THREE.Mesh(topGeo, topMat);
 bilardoTopu.position.set(0, 0.5, 0);
 scene.add(bilardoTopu);
 
+// Hız değişkeni
+let speed = 0.1;
+
 // Animasyon döngüsü
 function animate() {
   requestAnimationFrame(animate);
 
-  // Topu sağa doğru hareket ettir
-  bilardoTopu.position.x += 0.05;
-  if (bilardoTopu.position.x > 9) bilardoTopu.position.x = -9;
+  // Topu hareket ettir
+  bilardoTopu.position.x += speed;
+
+  // Duvarlara çarpınca yön değiştir
+  if (bilardoTopu.position.x > 9 || bilardoTopu.position.x < -9) {
+    speed = -speed;
+  }
 
   renderer.render(scene, camera);
 }
