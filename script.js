@@ -1,115 +1,142 @@
-// Sahne oluştur
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x0f662f);
+// Global Değişkenler
+let scene, camera, renderer;
+let world; // Cannon.js fizik dünyası
+let bilardoTopuBody, bilardoTopuMesh;
+let masaMesh;
 
-// Kamera ayarla
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-camera.position.set(0, 15, 30);
-camera.lookAt(0, 0, 0);
+let power = 0;
+let powerIncreasing = true;
 
-// Renderer
-const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('bilardoCanvas'), antialias: true });
-renderer.setSize(window.innerWidth, window.innerHeight);
-window.addEventListener('resize', () => {
+const powerIndicator = document.getElementById('powerIndicator');
+const canvas = document.getElementById('bilardoCanvas');
+
+// Topa vurma için açıyı fare ile seçeceğiz
+let vurusAci = 0; // radyan cinsinden
+let vurusHazir = false;
+
+init();
+animate();
+
+function init() {
+  // Three.js sahnesi
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0f662f);
+
+  // Kamera
+  camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+  camera.position.set(0, 15, 20);
+  camera.lookAt(0, 0, 0);
+
+  // Renderer
+  renderer = new THREE.WebGLRenderer({ canvas });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+
+  // Işık
+  const light = new THREE.DirectionalLight(0xffffff, 1);
+  light.position.set(5, 10, 5);
+  scene.add(light);
+
+  // Masa (düz bir kutu)
+  const masaGeo = new THREE.BoxGeometry(20, 1, 10);
+  const masaMat = new THREE.MeshStandardMaterial({ color: 0x1c8c3a });
+  masaMesh = new THREE.Mesh(masaGeo, masaMat);
+  masaMesh.position.y = -0.5;
+  scene.add(masaMesh);
+
+  // Fizik dünyası (Cannon.js)
+  world = new CANNON.World();
+  world.gravity.set(0, -9.82, 0);
+  world.broadphase = new CANNON.NaiveBroadphase();
+  world.solver.iterations = 10;
+
+  // Masa için fizik gövdesi (statik)
+  const masaShape = new CANNON.Box(new CANNON.Vec3(10, 0.5, 5));
+  const masaBody = new CANNON.Body({ mass: 0 });
+  masaBody.addShape(masaShape);
+  masaBody.position.set(0, -0.5, 0);
+  world.addBody(masaBody);
+
+  // Top (küre)
+  const topRadius = 0.5;
+  const topGeo = new THREE.SphereGeometry(topRadius, 32, 32);
+  const topMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
+  bilardoTopuMesh = new THREE.Mesh(topGeo, topMat);
+  scene.add(bilardoTopuMesh);
+
+  // Top fizik gövdesi
+  const topShape = new CANNON.Sphere(topRadius);
+  bilardoTopuBody = new CANNON.Body({ mass: 1, material: new CANNON.Material({friction: 0.2, restitution: 0.3}) });
+  bilardoTopuBody.addShape(topShape);
+  bilardoTopuBody.position.set(0, topRadius, 0);
+  bilardoTopuBody.linearDamping = 0.4; // sürtünme etkisi
+  world.addBody(bilardoTopuBody);
+
+  // Olaylar
+  window.addEventListener('resize', onWindowResize);
+
+  // Fare ile açı belirleme
+  canvas.addEventListener('mousemove', onMouseMove);
+
+  // Space ile vurma
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space' && vurusHazir) {
+      vurTop();
+    }
+  });
+}
+
+function onWindowResize() {
   camera.aspect = window.innerWidth/window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
-});
+}
 
-// Işık ekle
-const light = new THREE.DirectionalLight(0xffffff, 1);
-light.position.set(5, 20, 10);
-scene.add(light);
-scene.add(new THREE.AmbientLight(0x404040)); // ortam ışığı
+function onMouseMove(e) {
+  const rect = canvas.getBoundingClientRect();
+  const mouseX = e.clientX - rect.left;
+  const centerX = rect.width / 2;
 
-// Bilardo masası
-const masaGeo = new THREE.BoxGeometry(20, 1, 10);
-const masaMat = new THREE.MeshStandardMaterial({ color: 0x1c8c3a });
-const masa = new THREE.Mesh(masaGeo, masaMat);
-masa.position.y = -0.5;
-scene.add(masa);
+  // mouse x pozisyonu ile açı -45° ile +45° arası
+  const maxAngle = Math.PI / 4; // 45 derece
+  let relativeX = (mouseX - centerX) / (rect.width / 2);
+  relativeX = Math.min(Math.max(relativeX, -1), 1);
+  vurusAci = relativeX * maxAngle;
 
-// Top
-const topGeo = new THREE.SphereGeometry(0.5, 32, 32);
-const topMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
-const bilardoTopu = new THREE.Mesh(topGeo, topMat);
-bilardoTopu.position.set(0, 0.5, 0);
-scene.add(bilardoTopu);
+  vurusHazir = true;
+}
 
-// Topun hızı ve yönü
-let velocity = 0;
-let directionX = 0;  // -1 ile 1 arası, x ekseni için
-let directionZ = 0;  // -1 ile 1 arası, z ekseni için
+function vurTop() {
+  // Güç 0 - 100 arası
+  const guc = power / 100 * 15; // kuvvet
 
-// Güç göstergesi elemanları
-const powerBar = document.getElementById('powerBar');
-const powerIndicator = document.getElementById('powerIndicator');
-let power = 50;   // 0 - 100 arasında, başlangıçta yarı güç
+  // Kuvvet vektörü: z ekseni boyunca (masa ileri doğrultusu)
+  const forceX = Math.sin(vurusAci) * guc;
+  const forceZ = -Math.cos(vurusAci) * guc; // negatif z yönü ileri
 
-// Yön göstergesi elemanları
-const directionIndicator = document.getElementById('directionIndicator');
-let directionPos = 0;  // -1 ile 1 arası, sola-sağa yön için
+  bilardoTopuBody.velocity.set(forceX, 0, forceZ);
 
-// Klavye olayları
-window.addEventListener('keydown', (e) => {
-  switch(e.key.toLowerCase()) {
-    case 'a': // sola yön
-      directionPos = Math.max(directionPos - 0.05, -1);
-      break;
-    case 'd': // sağa yön
-      directionPos = Math.min(directionPos + 0.05, 1);
-      break;
-    case 'w': // güç artır
-      power = Math.min(power + 2, 100);
-      break;
-    case 's': // güç azalt
-      power = Math.max(power - 2, 0);
-      break;
-    case ' ': // space, vur
-      if (velocity === 0) {
-        // Yönü X ve Z ekseninde hesapla (Z'yi mesafeyi tam kullanmak için sabit yapabiliriz)
-        directionX = directionPos;
-        directionZ = -Math.sqrt(1 - directionX*directionX); // z ekseni ileri (masa derinliği boyunca)
-        velocity = power / 10;
-      }
-      break;
-  }
-});
+  vurusHazir = false; // tekrar açı seç
+}
 
-// Animasyon döngüsü
 function animate() {
   requestAnimationFrame(animate);
 
-  // UI güncelle
-  powerIndicator.style.height = power + '%';
-  directionIndicator.style.left = (50 + directionPos * 40) + '%';
+  // Fizik simülasyonu (60fps)
+  world.step(1/60);
 
-  // Top hareketi
-  if (velocity > 0) {
-    bilardoTopu.position.x += velocity * directionX;
-    bilardoTopu.position.z += velocity * directionZ;
+  // Three.js nesneleri fizik pozisyonlarına göre güncelle
+  bilardoTopuMesh.position.copy(bilardoTopuBody.position);
+  bilardoTopuMesh.quaternion.copy(bilardoTopuBody.quaternion);
 
-    // Sınırlar (masa kenarı)
-    if (bilardoTopu.position.x > 9) {
-      bilardoTopu.position.x = 9;
-      velocity = 0;
-    } else if (bilardoTopu.position.x < -9) {
-      bilardoTopu.position.x = -9;
-      velocity = 0;
-    }
-    if (bilardoTopu.position.z > 4) {
-      bilardoTopu.position.z = 4;
-      velocity = 0;
-    } else if (bilardoTopu.position.z < -4) {
-      bilardoTopu.position.z = -4;
-      velocity = 0;
-    }
-
-    // Sürtünme
-    velocity *= 0.95;
-    if (velocity < 0.01) velocity = 0;
+  // Güç göstergesi animasyonu
+  if (powerIncreasing) {
+    power += 1;
+    if (power >= 100) powerIncreasing = false;
+  } else {
+    power -= 1;
+    if (power <= 0) powerIncreasing = true;
   }
+  powerIndicator.style.height = power + '%';
 
   renderer.render(scene, camera);
 }
-animate();
