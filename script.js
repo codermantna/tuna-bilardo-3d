@@ -26,9 +26,9 @@ scene.add(masa);
 // Top
 const topGeo = new THREE.SphereGeometry(0.5, 32, 32);
 const topMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
-const top = new THREE.Mesh(topGeo, topMat);
-top.position.set(0, 0.5, 0);
-scene.add(top);
+const bilardoTopu = new THREE.Mesh(topGeo, topMat);
+bilardoTopu.position.set(0, 0.5, 0);
+scene.add(bilardoTopu);
 
 // Animasyon döngüsü
 function animate() {
@@ -36,3 +36,4 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
+
