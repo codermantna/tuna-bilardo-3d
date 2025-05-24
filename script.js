@@ -8,7 +8,7 @@ camera.position.set(0, 10, 20);
 camera.lookAt(0, 0, 0);
 
 // Renderer
-const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('bilardoCanvas') });
+const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('bilardoCanvas'), antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 
 // Işık ekle
@@ -41,7 +41,7 @@ let power = 0;   // 0 - 100 arasında
 let powerIncreasing = true;
 
 // Yön göstergesi için basit bir HTML/CSS elementi kullanacağız
-const directionIndicator = document.getElementById('directionIndicator');
+const directionIndicator = document.querySelector('#directionIndicator > div');
 let directionPos = 0;  // -1 ile 1 arası, ok tuşlarıyla değişecek
 
 // Klavye olayları
@@ -52,28 +52,39 @@ window.addEventListener('keydown', (e) => {
     directionPos = Math.max(directionPos - 0.1, -1);
   } else if (e.key === ' ') {
     // Topa vur (topun hızı ve yönü ayarlanır)
-    velocity = power / 20; // Güç hızla orantılı
-    direction = directionPos;
+    if (velocity === 0) { // sadece duruyorsa vur
+      velocity = power / 20; // Güç hızla orantılı
+      direction = directionPos;
+    }
   }
+});
+
+// Pencere boyutu değişince
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
 // Animasyon döngüsü
 function animate() {
   requestAnimationFrame(animate);
 
-  // Güç göstergesini animasyonla ayarla
-  if (powerIncreasing) {
-    power += 1;
-    if (power >= 100) powerIncreasing = false;
-  } else {
-    power -= 1;
-    if (power <= 0) powerIncreasing = true;
+  // Güç göstergesini animasyonla ayarla (top vurulmamışsa)
+  if (velocity === 0) {
+    if (powerIncreasing) {
+      power += 1;
+      if (power >= 100) powerIncreasing = false;
+    } else {
+      power -= 1;
+      if (power <= 0) powerIncreasing = true;
+    }
+    powerIndicator.style.height = (power * 1.5) + 'px';
   }
-  powerIndicator.style.bottom = (power * 0.8) + '%';
 
   // Yön göstergesini güncelle
-  // directionPos -1 ile 1 arası, bunu px ile ifade edelim
-  directionIndicator.style.left = (50 + directionPos * 40) + '%';
+  // directionPos -1 ile 1 arası, bunu px ile ifade edelim (0-80px arası hareket)
+  directionIndicator.style.left = (40 + directionPos * 40) + 'px';
 
   // Top hareketi
   if (velocity !== 0) {
