@@ -1,197 +1,192 @@
-// Temel değişkenler
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.150.1/build/three.module.js';
+import * as CANNON from 'https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js';
+
 let scene, camera, renderer;
-let world;
-let masaMesh, masaBody;
-let kenarlar = []; // cushion mesh ve body
-let bilardoTopuMesh, bilardoTopuBody;
-
-const topRadius = 0.5;
-
-let power = 0;
-let powerIncreasing = true;
-let vurusHazir = false;
-
-let vurusAci = 0; // topa vurma açısı 0-2PI arası (tam daire)
-
-const powerIndicator = document.getElementById('powerIndicator');
-const canvas = document.getElementById('bilardoCanvas');
+let world; // fizik dünyası
+let masa, masaBody;
+let bilardoTopu, topBody;
+let isteka, istekaBody;
+let clock;
 
 init();
 animate();
 
 function init() {
-  // Three.js setup
+  // --- THREE.js sahne ayarları ---
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x0f662f);
 
   camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-  camera.position.set(0, 20, 25);
+  camera.position.set(0, 15, 25);
   camera.lookAt(0, 0, 0);
 
-  renderer = new THREE.WebGLRenderer({ canvas });
+  renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('bilardoCanvas'), antialias: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
 
-  // Işık
-  const light = new THREE.DirectionalLight(0xffffff, 1);
-  light.position.set(10, 20, 10);
-  scene.add(light);
+  // --- Işık ---
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+  scene.add(ambientLight);
+  const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+  directionalLight.position.set(10, 20, 10);
+  scene.add(directionalLight);
 
-  // Masa - taban
-  const masaWidth = 20;
-  const masaHeight = 1;
-  const masaDepth = 10;
-
-  const masaGeo = new THREE.BoxGeometry(masaWidth, masaHeight, masaDepth);
-  const masaMat = new THREE.MeshStandardMaterial({ color: 0x1c8c3a });
-  masaMesh = new THREE.Mesh(masaGeo, masaMat);
-  masaMesh.position.y = -masaHeight/2;
-  scene.add(masaMesh);
-
-  // Masa kenarları (cushions) - üstte koyu kahverengi silindir benzeri
-  // Masa kenarlarını 4 tane uzun kutu olarak koyacağız
-
-  const kenarKalınlık = 0.5;
-  const kenarYukseklik = 1;
-
-  const kenarMat = new THREE.MeshStandardMaterial({ color: 0x654321 });
-
-  // Ön ve arka kenar (x yönünde)
-  const kenarGeoX = new THREE.BoxGeometry(masaWidth, kenarYukseklik, kenarKalınlık);
-  const önKenarMesh = new THREE.Mesh(kenarGeoX, kenarMat);
-  önKenarMesh.position.set(0, kenarYukseklik/2 - masaHeight/2, masaDepth/2 + kenarKalınlık/2);
-  scene.add(önKenarMesh);
-
-  const arkaKenarMesh = önKenarMesh.clone();
-  arkaKenarMesh.position.set(0, kenarYukseklik/2 - masaHeight/2, -masaDepth/2 - kenarKalınlık/2);
-  scene.add(arkaKenarMesh);
-
-  // Sağ ve sol kenar (z yönünde)
-  const kenarGeoZ = new THREE.BoxGeometry(kenarKalınlık, kenarYukseklik, masaDepth + kenarKalınlık*2);
-  const sagKenarMesh = new THREE.Mesh(kenarGeoZ, kenarMat);
-  sagKenarMesh.position.set(masaWidth/2 + kenarKalınlık/2, kenarYukseklik/2 - masaHeight/2, 0);
-  scene.add(sagKenarMesh);
-
-  const solKenarMesh = sagKenarMesh.clone();
-  solKenarMesh.position.set(-masaWidth/2 - kenarKalınlık/2, kenarYukseklik/2 - masaHeight/2, 0);
-  scene.add(solKenarMesh);
-
-  kenarlar.push(önKenarMesh, arkaKenarMesh, sagKenarMesh, solKenarMesh);
-
-  // Cannon.js dünya
-  world = new CANNON.World();
-  world.gravity.set(0, -9.82, 0);
+  // --- Fizik motoru (cannon-es) ---
+  world = new CANNON.World({
+    gravity: new CANNON.Vec3(0, -9.82, 0), // yerçekimi (y ekseninde aşağı)
+  });
   world.broadphase = new CANNON.NaiveBroadphase();
   world.solver.iterations = 10;
 
-  // Masa tabanı fizik (statik)
-  const masaShape = new CANNON.Box(new CANNON.Vec3(masaWidth/2, masaHeight/2, masaDepth/2));
-  masaBody = new CANNON.Body({ mass: 0 });
-  masaBody.addShape(masaShape);
-  masaBody.position.set(0, -masaHeight/2, 0);
+  // --- Masa (3D kutu) ---
+  const masaGeo = new THREE.BoxGeometry(20, 1, 10);
+  const masaMat = new THREE.MeshStandardMaterial({ color: 0x1c8c3a });
+  masa = new THREE.Mesh(masaGeo, masaMat);
+  masa.position.y = -0.5;
+  scene.add(masa);
+
+  masaBody = new CANNON.Body({
+    mass: 0, // sabit nesne
+    shape: new CANNON.Box(new CANNON.Vec3(10, 0.5, 5))
+  });
+  masaBody.position.copy(masa.position);
   world.addBody(masaBody);
 
-  // Masa kenarları fizik
-  const kenarShapeX = new CANNON.Box(new CANNON.Vec3(masaWidth/2, kenarYukseklik/2, kenarKalınlık/2));
-  const kenarShapeZ = new CANNON.Box(new CANNON.Vec3(kenarKalınlık/2, kenarYukseklik/2, masaDepth/2 + kenarKalınlık));
+  // --- Masa kenarları (engeller) ---
+  const kenarKalınlık = 0.5;
+  const kenarYükseklik = 2;
+  const kenarlar = [];
 
-  // Ön kenar
-  let önKenarBody = new CANNON.Body({ mass: 0 });
-  önKenarBody.addShape(kenarShapeX);
-  önKenarBody.position.set(0, kenarYukseklik/2 - masaHeight/2, masaDepth/2 + kenarKalınlık/2);
-  world.addBody(önKenarBody);
+  const positions = [
+    {x: 0, y: kenarYükseklik/2, z: -5 - kenarKalınlık}, // arka kenar
+    {x: 0, y: kenarYükseklik/2, z: 5 + kenarKalınlık},  // ön kenar
+    {x: -10 - kenarKalınlık, y: kenarYükseklik/2, z: 0}, // sol kenar
+    {x: 10 + kenarKalınlık, y: kenarYükseklik/2, z: 0},  // sağ kenar
+  ];
+  const kenarBoyutlar = [
+    new CANNON.Vec3(10, kenarYükseklik/2, kenarKalınlık), // arka & ön kenar boyutu
+    new CANNON.Vec3(kenarKalınlık, kenarYükseklik/2, 5),  // sol & sağ kenar boyutu
+  ];
 
-  // Arka kenar
-  let arkaKenarBody = new CANNON.Body({ mass: 0 });
-  arkaKenarBody.addShape(kenarShapeX);
-  arkaKenarBody.position.set(0, kenarYukseklik/2 - masaHeight/2, -masaDepth/2 - kenarKalınlık/2);
-  world.addBody(arkaKenarBody);
+  positions.forEach((pos, i) => {
+    let shape;
+    if(i < 2) shape = new CANNON.Box(kenarBoyutlar[0]);
+    else shape = new CANNON.Box(kenarBoyutlar[1]);
 
-  // Sağ kenar
-  let sagKenarBody = new CANNON.Body({ mass: 0 });
-  sagKenarBody.addShape(kenarShapeZ);
-  sagKenarBody.position.set(masaWidth/2 + kenarKalınlık/2, kenarYukseklik/2 - masaHeight/2, 0);
-  world.addBody(sagKenarBody);
+    const kenarBody = new CANNON.Body({ mass: 0 });
+    kenarBody.addShape(shape);
+    kenarBody.position.set(pos.x, pos.y, pos.z);
+    world.addBody(kenarBody);
 
-  // Sol kenar
-  let solKenarBody = new CANNON.Body({ mass: 0 });
-  solKenarBody.addShape(kenarShapeZ);
-  solKenarBody.position.set(-masaWidth/2 - kenarKalınlık/2, kenarYukseklik/2 - masaHeight/2, 0);
-  world.addBody(solKenarBody);
+    // Görsel olarak da ekleyelim
+    const geo = new THREE.BoxGeometry(
+      shape.halfExtents.x*2,
+      shape.halfExtents.y*2,
+      shape.halfExtents.z*2
+    );
+    const mat = new THREE.MeshStandardMaterial({color:0x654321});
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.copy(kenarBody.position);
+    scene.add(mesh);
+    kenarlar.push(mesh);
+  });
 
-  // Top mesh ve fizik
+  // --- Bilardo topu ---
+  const topRadius = 0.5;
   const topGeo = new THREE.SphereGeometry(topRadius, 32, 32);
-  const topMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
-  bilardoTopuMesh = new THREE.Mesh(topGeo, topMat);
-  scene.add(bilardoTopuMesh);
+  const topMat = new THREE.MeshStandardMaterial({color: 0xffffff});
+  bilardoTopu = new THREE.Mesh(topGeo, topMat);
+  scene.add(bilardoTopu);
 
-  const topShape = new CANNON.Sphere(topRadius);
-  bilardoTopuBody = new CANNON.Body({ mass: 1, material: new CANNON.Material({ friction: 0.1, restitution: 0.7 }) });
-  bilardoTopuBody.addShape(topShape);
-  bilardoTopuBody.position.set(0, topRadius, 0);
-  bilardoTopuBody.linearDamping = 0.4; // sürtünme
+  topBody = new CANNON.Body({
+    mass: 1,
+    shape: new CANNON.Sphere(topRadius),
+    position: new CANNON.Vec3(0, topRadius, 0),
+    linearDamping: 0.2,  // sürtünme gibi yavaşlatma
+    angularDamping: 0.4
+  });
+  world.addBody(topBody);
 
-  world.addBody(bilardoTopuBody);
+  // --- İsteka ---
+  const istekaGeo = new THREE.CylinderGeometry(0.05, 0.05, 7, 8);
+  const istekaMat = new THREE.MeshStandardMaterial({color: 0x8b4513});
+  isteka = new THREE.Mesh(istekaGeo, istekaMat);
+  isteka.geometry.rotateZ(Math.PI/2); // yatay konumda
+  scene.add(isteka);
 
-  // Eventler
-  window.addEventListener('resize', onWindowResize);
-  canvas.addEventListener('mousemove', onMouseMove);
-  window.addEventListener('keydown', onKeyDown);
+  istekaBody = new CANNON.Body({ mass: 0 });
+  const istekaShape = new CANNON.Cylinder(0.05, 0.05, 7, 8);
+  istekaBody.addShape(istekaShape);
+  istekaBody.position.set(0, topRadius, -5);
+  world.addBody(istekaBody);
+
+  // Saat
+  clock = new THREE.Clock();
+
+  // Fare hareketi ile isteka açısı kontrolü
+  window.addEventListener('mousemove', onMouseMove);
+  window.addEventListener('mousedown', onMouseDown);
+
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth/window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
 }
 
-function onWindowResize() {
-  camera.aspect = window.innerWidth/window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
+// Fare pozisyonu
+let mouseX = 0;
+function onMouseMove(event) {
+  mouseX = (event.clientX / window.innerWidth) * 2 - 1; // -1 ile 1 arası
+
+  // İstekayı topun etrafında döndür (y ekseni)
+  const angle = mouseX * Math.PI / 2; // -90° ile 90°
+  isteka.rotation.y = angle;
+
+  // İstekanın pozisyonu topun arkasında kalmalı
+  const distanceFromBall = 1.5;
+  const x = topBody.position.x + Math.sin(angle) * distanceFromBall;
+  const z = topBody.position.z + Math.cos(angle) * distanceFromBall;
+  isteka.position.set(x, topBody.position.y, z);
+
+  // Fizik gövdesini de aynı konuma taşı
+  istekaBody.position.copy(isteka.position);
+  istekaBody.quaternion.copy(isteka.quaternion);
 }
 
-// Fare ile açıyı 360° (0-2PI) arası ayarlama
-function onMouseMove(e) {
-  const rect = canvas.getBoundingClientRect();
-  const mouseX = e.clientX - rect.left - rect.width/2;
-  const mouseY = e.clientY - rect.top - rect.height/2;
+// Vurma işlemi
+function onMouseDown(event) {
+  if(event.button !== 0) return; // sadece sol tık
 
-  // Kamera yukarıdan bakıyor, +Z ileri, +X sağ
-  vurusAci = Math.atan2(mouseX, -mouseY);
-  vurusHazir = true;
+  // İstekayı topa doğru ileri doğru hareket ettirip vuruyoruz
+  // İsteka-top vektörü
+  const dir = new CANNON.Vec3(
+    topBody.position.x - isteka.position.x,
+    0,
+    topBody.position.z - isteka.position.z
+  );
+  dir.normalize();
+
+  // Kuvvet büyüklüğü (sabitleyelim)
+  const forceMagnitude = 20;
+
+  // Kuvveti topun merkezine uygula
+  topBody.applyImpulse(
+    new CANNON.Vec3(dir.x * forceMagnitude, 0, dir.z * forceMagnitude),
+    topBody.position
+  );
 }
 
-// Space ile vurma
-function onKeyDown(e) {
-  if (e.code === 'Space' && vurusHazir) {
-    vurTop();
-  }
-}
-
-// Topa vurma fonksiyonu
-function vurTop() {
-  const guc = power / 100 * 20; // kuvvet
-
-  const forceX = Math.sin(vurusAci) * guc;
-  const forceZ = Math.cos(vurusAci) * guc;
-
-  bilardoTopuBody.velocity.set(forceX, 0, forceZ);
-  vurusHazir = false;
-}
-
-// Animasyon döngüsü
 function animate() {
   requestAnimationFrame(animate);
 
-  world.step(1/60);
+  const delta = clock.getDelta();
+  world.step(1/60, delta);
 
-  // Top pozisyon ve rotasyonunu güncelle
-  bilardoTopuMesh.position.copy(bilardoTopuBody.position);
-  bilardoTopuMesh.quaternion.copy(bilardoTopuBody.quaternion);
+  // Fizik pozisyonlarını THREE objelerine uygula
+  bilardoTopu.position.copy(topBody.position);
+  bilardoTopu.quaternion.copy(topBody.quaternion);
 
-  // Güç göstergesini ayarla
-  if (powerIncreasing) {
-    power += 1;
-    if (power >= 100) powerIncreasing = false;
-  } else {
-    power -= 1;
-    if (power <= 0) powerIncreasing = true;
-  }
-  powerIndicator.style.height = power + '%';
+  // İstekanın pozisyonu ve dönüşü yukarıda mousemove ile kontrol ediliyor
 
   renderer.render(scene, camera);
 }
