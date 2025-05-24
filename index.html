@@ -3,73 +3,75 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>3D Bilardo Top Kontrol</title>
+<title>3D Bilardo</title>
 <style>
-  body { margin: 0; overflow: hidden; background: #0f662f; }
-  #bilardoCanvas { display: block; }
+  body, html {
+    margin: 0; padding: 0; overflow: hidden; 
+    background: #0f662f;
+    font-family: Arial, sans-serif;
+  }
+  #bilardoCanvas {
+    display: block;
+  }
   #powerBar {
     position: fixed;
-    right: 10px;
-    top: 50%;
-    width: 30px;
-    height: 200px;
-    background: #333;
+    right: 20px;
+    bottom: 20px;
+    width: 20px;
+    height: 100px;
+    background: #555;
     border-radius: 10px;
   }
   #powerIndicator {
     position: absolute;
     bottom: 0;
     width: 100%;
-    background: limegreen;
-    border-radius: 10px;
+    height: 10%;
+    background: red;
+    border-radius: 10px 10px 0 0;
   }
   #directionIndicator {
     position: fixed;
+    bottom: 140px;
     left: 50%;
-    bottom: 20px;
-    width: 100px;
-    height: 100px;
-    margin-left: -50px;
-    border: 2px solid white;
+    width: 20px;
+    height: 20px;
+    background: yellow;
     border-radius: 50%;
-  }
-  #directionArrow {
-    width: 4px;
-    height: 50px;
-    background: white;
-    margin: 25px auto 0;
-    transform-origin: bottom center;
+    transform: translateX(-50%);
+    border: 2px solid black;
   }
 </style>
 </head>
 <body>
 <canvas id="bilardoCanvas"></canvas>
-<div id="powerBar"><div id="powerIndicator"></div></div>
-<div id="directionIndicator">
-  <div id="directionArrow"></div>
-</div>
 
-<script src="https://cdn.jsdelivr.net/npm/three@0.153.0/build/three.min.js"></script>
+<div id="powerBar">
+  <div id="powerIndicator"></div>
+</div>
+<div id="directionIndicator"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.148.0/build/three.min.js"></script>
 <script>
-  // Sahne ve kamera
+  // Sahne oluştur
   const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0f662f);
+
+  // Kamera ayarla
   const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
   camera.position.set(0, 15, 25);
   camera.lookAt(0, 0, 0);
 
   // Renderer
-  const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('bilardoCanvas'), antialias: true });
+  const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('bilardoCanvas') });
   renderer.setSize(window.innerWidth, window.innerHeight);
 
-  // Işıklar
+  // Işık ekle
   const light = new THREE.DirectionalLight(0xffffff, 1);
-  light.position.set(10, 20, 10);
+  light.position.set(5, 10, 5);
   scene.add(light);
 
-  const ambientLight = new THREE.AmbientLight(0x404040);
-  scene.add(ambientLight);
-
-  // Masa
+  // Bilardo masası
   const masaGeo = new THREE.BoxGeometry(20, 1, 10);
   const masaMat = new THREE.MeshStandardMaterial({ color: 0x1c8c3a });
   const masa = new THREE.Mesh(masaGeo, masaMat);
@@ -83,40 +85,55 @@
   bilardoTopu.position.set(0, 0.5, 0);
   scene.add(bilardoTopu);
 
-  // Hareket değişkenleri
-  let velocity = new THREE.Vector3(0, 0, 0);
-  let power = 0;
+  // Topun hızı ve yönü
+  let velocity = 0;
+  let direction = new THREE.Vector2(0, 0);  // x ve z yönleri
+
+  // Güç göstergesi elemanları
+  const powerBar = document.getElementById('powerBar');
+  const powerIndicator = document.getElementById('powerIndicator');
+  let power = 0;   // 0 - 100 arasında
   let powerIncreasing = true;
 
-  // Yön vektörü (x,z)
-  let directionVector = new THREE.Vector3(0, 0, 0);
+  // Yön göstergesi için basit bir HTML/CSS elementi kullanacağız
+  const directionIndicator = document.getElementById('directionIndicator');
+  let directionPos = new THREE.Vector2(0, 0);  // x ve z yönleri, -1 ile 1 arası
 
-  // DOM elemanları
-  const powerIndicator = document.getElementById('powerIndicator');
-  const directionArrow = document.getElementById('directionArrow');
-
-  // Klavye ile yön kontrolü
-  const keys = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
+  // Klavye ile yön kontrolü: W,S,A,D ile topun yönünü belirle
   window.addEventListener('keydown', (e) => {
-    if (e.key in keys) keys[e.key] = true;
-    if (e.key === ' ') {
-      // Vuruş: topa hız ver
-      if (velocity.length() === 0 && directionVector.length() !== 0) {
-        const normDir = directionVector.clone().normalize();
-        velocity = normDir.multiplyScalar(power / 10);
-      }
+    switch(e.key.toLowerCase()){
+      case 'd':  // sağa doğru x+
+        directionPos.x = Math.min(directionPos.x + 0.1, 1);
+        break;
+      case 'a':  // sola x-
+        directionPos.x = Math.max(directionPos.x - 0.1, -1);
+        break;
+      case 'w':  // öne z-
+        directionPos.y = Math.max(directionPos.y - 0.1, -1);
+        break;
+      case 's':  // arkaya z+
+        directionPos.y = Math.min(directionPos.y + 0.1, 1);
+        break;
+      case ' ':  // space ile vur
+        if (power > 0) {
+          velocity = power / 20;
+          direction = directionPos.clone().normalize();
+          if (direction.length() === 0) {
+            // Eğer yön sıfırsa ileri (z negatif) at
+            direction.set(0, -1);
+          }
+          power = 0;
+        }
+        break;
     }
-  });
-  window.addEventListener('keyup', (e) => {
-    if (e.key in keys) keys[e.key] = false;
   });
 
   // Animasyon döngüsü
   function animate() {
     requestAnimationFrame(animate);
 
-    // Güç animasyonu (top hareketsizse)
-    if (velocity.length() === 0) {
+    // Güç göstergesini animasyonla ayarla
+    if (velocity === 0) {
       if (powerIncreasing) {
         power += 1;
         if (power >= 100) powerIncreasing = false;
@@ -124,62 +141,49 @@
         power -= 1;
         if (power <= 0) powerIncreasing = true;
       }
-      powerIndicator.style.height = power * 2 + '%';
+      powerIndicator.style.height = (power) + '%';
+    } else {
+      powerIndicator.style.height = '0%';
     }
 
-    // Yönü güncelle (top hareketsizse)
-    if (velocity.length() === 0) {
-      let dirX = 0;
-      let dirZ = 0;
-      if (keys.ArrowUp) dirZ -= 1;
-      if (keys.ArrowDown) dirZ += 1;
-      if (keys.ArrowLeft) dirX -= 1;
-      if (keys.ArrowRight) dirX += 1;
+    // Yön göstergesini güncelle (yatay hareket için sadece x eksenini gösterebiliriz)
+    // Burada x ve y değerlerini kullanarak pozisyon ayarla
+    const leftPercent = 50 + directionPos.x * 40;
+    const bottomPercent = 50 + directionPos.y * 40;
+    directionIndicator.style.left = leftPercent + '%';
+    directionIndicator.style.bottom = (20 + bottomPercent) + 'px';
 
-      directionVector.set(dirX, 0, dirZ);
-      if (directionVector.length() !== 0) {
-        directionVector.normalize();
-        // Yön oku döndür
-        const angle = Math.atan2(directionVector.x, directionVector.z); // Z ekseni önde
-        directionArrow.style.transform = `rotate(${angle}rad)`;
+    // Top hareketi
+    if (velocity > 0) {
+      bilardoTopu.position.x += velocity * direction.x;
+      bilardoTopu.position.z += velocity * direction.y;
+
+      // Sınırlar (masa kenarı)
+      if (bilardoTopu.position.x > 9) {
+        bilardoTopu.position.x = 9;
+        velocity = 0;
+      } else if (bilardoTopu.position.x < -9) {
+        bilardoTopu.position.x = -9;
+        velocity = 0;
       }
-    }
-
-    // Topu hareket ettir
-    if (velocity.length() !== 0) {
-      bilardoTopu.position.add(velocity);
-
-      // Masa sınırları
-      if (bilardoTopu.position.x > 9.5) {
-        bilardoTopu.position.x = 9.5;
-        velocity.x = -velocity.x * 0.5;
-      } else if (bilardoTopu.position.x < -9.5) {
-        bilardoTopu.position.x = -9.5;
-        velocity.x = -velocity.x * 0.5;
-      }
-      if (bilardoTopu.position.z > 4.5) {
-        bilardoTopu.position.z = 4.5;
-        velocity.z = -velocity.z * 0.5;
-      } else if (bilardoTopu.position.z < -4.5) {
-        bilardoTopu.position.z = -4.5;
-        velocity.z = -velocity.z * 0.5;
+      if (bilardoTopu.position.z > 4) {
+        bilardoTopu.position.z = 4;
+        velocity = 0;
+      } else if (bilardoTopu.position.z < -4) {
+        bilardoTopu.position.z = -4;
+        velocity = 0;
       }
 
-      // Sürtünme
-      velocity.multiplyScalar(0.95);
-
-      // Çok yavaşlarsa durdur
-      if (velocity.length() < 0.01) {
-        velocity.set(0, 0, 0);
-      }
+      // Hız yavaşlayacak (sürtünme)
+      velocity *= 0.95;
+      if (velocity < 0.01) velocity = 0;
     }
 
     renderer.render(scene, camera);
   }
-
   animate();
 
-  // Pencere boyutu değişirse
+  // Pencere boyutu değişirse canvas'ı güncelle
   window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth/window.innerHeight;
     camera.updateProjectionMatrix();
