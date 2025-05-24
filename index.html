@@ -3,27 +3,21 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Bilardo 3D - Güç & Yön Kontrolü</title>
+  <title>3D Bilardo</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <canvas id="bilardoCanvas"></canvas>
 
-  <div id="powerContainer">
-    <div id="powerBar">
-      <div id="powerIndicator"></div>
-    </div>
-    <div>Güç</div>
+  <!-- Güç barı -->
+  <div id="powerBar">
+    <div id="powerIndicator"></div>
   </div>
 
-  <div id="directionContainer">
-    <div>Yön</div>
-    <div id="directionBar">
-      <div id="directionIndicator"></div>
-    </div>
-  </div>
+  <!-- Yön göstergesi -->
+  <div id="directionIndicator"></div>
 
-  <script src="https://cdn.jsdelivr.net/npm/three@0.153.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.151.3/build/three.min.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
